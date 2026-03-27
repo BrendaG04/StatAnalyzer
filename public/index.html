@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>StatAnalyzer — Julia Statistical Dashboard</title>
+<style>
+/* ── Reset & Base ─────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:   #1B2A4A;
+  --navy2:  #243558;
+  --teal:   #0D9488;
+  --teal2:  #0f766e;
+  --light:  #F4F7F9;
+  --white:  #FFFFFF;
+  --gray1:  #64748B;
+  --gray2:  #94A3B8;
+  --gray3:  #E2E8F0;
+  --red:    #EF4444;
+  --amber:  #F59E0B;
+  --green:  #10B981;
+  --radius: 10px;
+  --shadow: 0 4px 18px rgba(0,0,0,.10);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,.07);
+}
+html{font-size:15px}
+body{
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--light);
+  color: #1E293B;
+  min-height: 100vh;
+}
+
+/* ── Top Nav ──────────────────────────────────────────── */
+nav{
+  background: var(--navy);
+  padding: 0 2rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,0,0,.3);
+}
+.nav-logo{
+  display:flex; align-items:center; gap:.7rem;
+  color:#fff; font-size:1.15rem; font-weight:700; letter-spacing:.5px;
+}
+.nav-logo span{
+  background: var(--teal);
+  color:#fff; font-size:.7rem; font-weight:600;
+  padding:2px 8px; border-radius:99px; letter-spacing:.8px;
+  text-transform:uppercase;
+}
+.nav-right{color:var(--gray2); font-size:.82rem}
+
+/* ── Layout ───────────────────────────────────────────── */
+.container{max-width:1280px; margin:0 auto; padding:1.8rem 2rem}
+
+/* ── Upload Card ──────────────────────────────────────── */
+.upload-card{
+  background:var(--white); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:2rem 2.2rem;
+  display:flex; align-items:center; gap:2rem;
+  flex-wrap:wrap; margin-bottom:1.8rem;
+  border-left: 4px solid var(--teal);
+}
+.upload-card h2{font-size:1.05rem; color:var(--navy); margin-bottom:.3rem}
+.upload-card p{font-size:.82rem; color:var(--gray1)}
+.upload-area{
+  border: 2px dashed var(--gray3);
+  border-radius:8px; padding:.7rem 1.2rem;
+  cursor:pointer; transition:border-color .2s;
+  font-size:.85rem; color:var(--gray1);
+  display:flex; align-items:center; gap:.6rem;
+}
+.upload-area:hover{border-color:var(--teal)}
+.upload-area input{display:none}
+.btn{
+  padding:.55rem 1.3rem; border-radius:8px; border:none;
+  cursor:pointer; font-size:.875rem; font-weight:600;
+  transition:all .18s;
+}
+.btn-teal{background:var(--teal); color:#fff}
+.btn-teal:hover{background:var(--teal2)}
+.btn-outline{background:transparent; color:var(--teal);
+  border:1.5px solid var(--teal)}
+.btn-outline:hover{background:var(--teal); color:#fff}
+.btn:disabled{opacity:.5; cursor:not-allowed}
+
+/* ── Spinner ──────────────────────────────────────────── */
+#spinner{
+  display:none; text-align:center; padding:4rem 0;
+}
+.spin{
+  width:48px;height:48px; border:4px solid var(--gray3);
+  border-top-color:var(--teal); border-radius:50%;
+  animation:spin .8s linear infinite; margin:0 auto 1rem;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Dashboard Grid ───────────────────────────────────── */
+#dashboard{display:none}
+
+.stat-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(155px,1fr));
+  gap:1rem; margin-bottom:1.8rem;
+}
+.stat-card{
+  background:var(--white); border-radius:var(--radius);
+  box-shadow:var(--shadow-sm); padding:1.2rem 1.4rem;
+  border-top:3px solid var(--teal);
+}
+.stat-card .label{font-size:.75rem; color:var(--gray1);
+  text-transform:uppercase; letter-spacing:.6px; margin-bottom:.3rem}
+.stat-card .value{font-size:1.7rem; font-weight:700; color:var(--navy)}
+.stat-card .sub{font-size:.75rem; color:var(--gray2); margin-top:.15rem}
+
+/* ── Tabs ─────────────────────────────────────────────── */
+.tabs{
+  display:flex; gap:.3rem; margin-bottom:1.4rem;
+  background:var(--white); padding:.4rem;
+  border-radius:var(--radius); box-shadow:var(--shadow-sm);
+  flex-wrap:wrap;
+}
+.tab{
+  padding:.5rem 1.1rem; border-radius:7px; border:none;
+  background:transparent; cursor:pointer; font-size:.84rem;
+  font-weight:500; color:var(--gray1); transition:all .18s;
+}
+.tab.active{background:var(--teal); color:#fff; font-weight:600}
+.tab:hover:not(.active){background:var(--light)}
+
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── Section Cards ────────────────────────────────────── */
+.card{
+  background:var(--white); border-radius:var(--radius);
+  box-shadow:var(--shadow-sm); padding:1.5rem 1.8rem;
+  margin-bottom:1.4rem;
+}
+.card-title{
+  font-size:.95rem; font-weight:700; color:var(--navy);
+  margin-bottom:1.1rem; display:flex; align-items:center; gap:.5rem;
+}
+.card-title::before{
+  content:''; display:inline-block;
+  width:4px; height:18px; background:var(--teal); border-radius:2px;
+}
+
+/* ── Overview Table ───────────────────────────────────── */
+table{width:100%; border-collapse:collapse; font-size:.84rem}
+th{background:var(--navy); color:#fff; padding:.6rem .9rem;
+   text-align:left; font-weight:600; font-size:.78rem;
+   text-transform:uppercase; letter-spacing:.5px}
+th:first-child{border-radius:6px 0 0 0}
+th:last-child{border-radius:0 6px 0 0}
+tr:nth-child(even) td{background:#F8FAFC}
+td{padding:.55rem .9rem; border-bottom:1px solid var(--gray3);
+   color:#374151}
+tr:hover td{background:#EFF6FF}
+
+.badge{
+  display:inline-block; padding:2px 9px; border-radius:99px;
+  font-size:.73rem; font-weight:600;
+}
+.badge-green{background:#D1FAE5; color:#065F46}
+.badge-red{background:#FEE2E2; color:#991B1B}
+.badge-amber{background:#FEF3C7; color:#92400E}
+
+/* ── Stats Grid ───────────────────────────────────────── */
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(300px,1fr));
+  gap:1.2rem;
+}
+.col-stat-card{
+  background:var(--light); border-radius:9px; padding:1.2rem;
+  border:1px solid var(--gray3);
+}
+.col-stat-card h4{
+  font-size:.9rem; font-weight:700; color:var(--navy);
+  margin-bottom:.9rem; padding-bottom:.5rem;
+  border-bottom:2px solid var(--teal);
+}
+.stat-row{
+  display:flex; justify-content:space-between;
+  padding:.28rem 0; font-size:.82rem;
+  border-bottom:1px solid var(--gray3);
+}
+.stat-row:last-child{border-bottom:none}
+.stat-row .skey{color:var(--gray1)}
+.stat-row .sval{font-weight:600; color:var(--navy)}
+
+/* ── Correlation Table ────────────────────────────────── */
+.cor-table-wrap{overflow-x:auto}
+.strength-strong{color:var(--teal); font-weight:700}
+.strength-moderate{color:var(--amber); font-weight:600}
+.strength-weak{color:var(--gray1)}
+.dir-pos{color:var(--green)}
+.dir-neg{color:var(--red)}
+
+/* ── Plot Grid ────────────────────────────────────────── */
+.plot-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(560px,1fr));
+  gap:1.4rem;
+}
+.plot-card{
+  background:var(--white); border-radius:var(--radius);
+  box-shadow:var(--shadow-sm); overflow:hidden;
+}
+.plot-card-header{
+  background:var(--navy); color:#fff;
+  padding:.65rem 1rem; font-size:.82rem; font-weight:600;
+}
+.plot-card img{width:100%; display:block; padding:.4rem}
+
+/* ── Empty state ──────────────────────────────────────── */
+.empty{
+  text-align:center; padding:3.5rem 1rem; color:var(--gray2);
+}
+.empty svg{margin-bottom:1rem; opacity:.35}
+
+/* ── Responsive ───────────────────────────────────────── */
+@media(max-width:640px){
+  .container{padding:1rem}
+  .upload-card{flex-direction:column; align-items:flex-start}
+  .plot-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2.2">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+    StatAnalyzer
+    <span>Julia</span>
+  </div>
+  <div class="nav-right">CSC321 — Statistical Analysis Dashboard</div>
+</nav>
+
+<!-- MAIN -->
+<div class="container">
+
+  <!-- UPLOAD -->
+  <div class="upload-card">
+    <div>
+      <h2>Upload a CSV Dataset</h2>
+      <p>Drop any CSV file to analyze it, or load the built-in sample student dataset.</p>
+    </div>
+    <label class="upload-area">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span id="file-label">Choose CSV file…</span>
+      <input type="file" id="csv-input" accept=".csv"/>
+    </label>
+    <button class="btn btn-teal" id="analyze-btn" onclick="analyzeFile()">Analyze</button>
+    <button class="btn btn-outline" onclick="loadSample()">Load Sample Data</button>
+  </div>
+
+  <!-- SPINNER -->
+  <div id="spinner">
+    <div class="spin"></div>
+    <p style="color:var(--gray1);font-size:.9rem">Running Julia analysis…</p>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard">
+
+    <!-- Summary KPIs -->
+    <div class="stat-grid" id="kpi-row"></div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('overview',this)">📋 Overview</button>
+      <button class="tab" onclick="switchTab('stats',this)">📊 Statistics</button>
+      <button class="tab" onclick="switchTab('correlation',this)">🔗 Correlation</button>
+      <button class="tab" onclick="switchTab('charts',this)">📈 Charts</button>
+    </div>
+
+    <!-- Tab: Overview -->
+    <div class="tab-panel active" id="tab-overview">
+      <div class="card">
+        <div class="card-title">Column Overview</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Column</th><th>Type</th>
+                <th>Missing</th><th>Miss %</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="overview-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Statistics -->
+    <div class="tab-panel" id="tab-stats">
+      <div class="stats-grid" id="stats-grid"></div>
+    </div>
+
+    <!-- Tab: Correlation -->
+    <div class="tab-panel" id="tab-correlation">
+      <div class="card">
+        <div class="card-title">Pairwise Pearson Correlation (Non-Categorical Numeric)</div>
+        <div class="cor-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Column A</th><th>Column B</th>
+                <th>r</th><th>N Pairs</th><th>Strength</th><th>Direction</th>
+              </tr>
+            </thead>
+            <tbody id="cor-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Charts -->
+    <div class="tab-panel" id="tab-charts">
+      <div class="plot-grid" id="plot-grid"></div>
+    </div>
+
+  </div><!-- /dashboard -->
+</div><!-- /container -->
+
+<script>
+// ── Tab switching ────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── File label ───────────────────────────────────────────────
+document.getElementById('csv-input').addEventListener('change', function(){
+  const name = this.files[0]?.name || 'Choose CSV file…';
+  document.getElementById('file-label').textContent = name;
+});
+
+// ── Analyze uploaded file ────────────────────────────────────
+function analyzeFile() {
+  const fileInput = document.getElementById('csv-input');
+  const fd = new FormData();
+  if (fileInput.files[0]) fd.append('csvfile', fileInput.files[0]);
+  runAnalysis('/analyze', { method:'POST', body:fd });
+}
+
+// ── Load sample data ─────────────────────────────────────────
+function loadSample() {
+  runAnalysis('/sample', { method:'GET' });
+}
+
+// ── Core fetch + render ──────────────────────────────────────
+function runAnalysis(url, opts) {
+  document.getElementById('spinner').style.display = 'block';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('analyze-btn').disabled = true;
+
+  fetch(url, opts)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { alert('Error: ' + data.error); return; }
+      renderDashboard(data);
+    })
+    .catch(e => alert('Request failed: ' + e))
+    .finally(() => {
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('analyze-btn').disabled = false;
+    });
+}
+
+// ── Render everything ────────────────────────────────────────
+function renderDashboard(d) {
+  renderKPIs(d);
+  renderOverview(d.overview);
+  renderStats(
+    d.stats,
+    d.numeric || [],
+    d.cat_stats || d.text_stats || {},
+    d.categorical || d.text || []
+  );
+  renderCorrelation(d.cor_rows);
+  renderCharts(d.plots);
+  document.getElementById('dashboard').style.display = 'block';
+}
+
+// KPI row
+function renderKPIs(d) {
+  const numeric_count = d.numeric.length;
+  const categorical_count = (d.categorical || d.text || []).length;
+  const total_missing = d.overview.reduce((s,r)=>s+r.missing,0);
+  const kpis = [
+    { label:'Rows',           value: d.rows.toLocaleString(),    sub:'total records' },
+    { label:'Columns',        value: d.cols,                     sub:'all types' },
+    { label:'Numeric Cols',   value: numeric_count,              sub:'analyzed' },
+    { label:'Categorical',    value: categorical_count,          sub:'analyzed' },
+    { label:'Missing Values', value: total_missing,              sub:'across dataset' },
+    { label:'Dataset',        value: d.filename,                 sub:'source file' },
+  ];
+  document.getElementById('kpi-row').innerHTML = kpis.map(k => `
+    <div class="stat-card">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value}</div>
+      <div class="sub">${k.sub}</div>
+    </div>`).join('');
+}
+
+function esc(v) {
+  return String(v)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+// Overview table
+function renderOverview(rows) {
+  document.getElementById('overview-body').innerHTML = rows.map(r => {
+    const badge = r.missing === 0
+      ? `<span class="badge badge-green">Clean</span>`
+      : r.pct > 20
+        ? `<span class="badge badge-red">${r.pct}% missing</span>`
+        : `<span class="badge badge-amber">${r.pct}% missing</span>`;
+    return `<tr>
+      <td><strong>${r.name}</strong></td>
+      <td><code style="background:#EFF6FF;padding:2px 7px;border-radius:4px;font-size:.78rem">${r.type}</code></td>
+      <td>${r.missing}</td>
+      <td>${r.pct}%</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Stats cards
+function renderStats(stats, numeric, catStats, catCols) {
+  const cards = [];
+
+  if (numeric.length) {
+    const labels = {
+      n:'Count', mean:'Mean', std:'Std Dev', min:'Min',
+      q1:'Q1 (25th)', median:'Median', q3:'Q3 (75th)', max:'Max',
+      iqr:'IQR', skew:'Skewness', kurt:'Kurtosis', cv:'CV (%)'
+    };
+    numeric.forEach(col => {
+      const s = stats[col];
+      if (!s) return;
+      const rows = Object.entries(labels).map(([k,label]) =>
+        `<div class="stat-row">
+          <span class="skey">${label}</span>
+          <span class="sval">${s[k]}</span>
+        </div>`).join('');
+      cards.push(`<div class="col-stat-card">
+        <h4>📊 ${esc(col)}</h4>${rows}
+      </div>`);
+    });
+  }
+
+  if (catCols.length) {
+    catCols.forEach(col => {
+      const s = catStats[col];
+      if (!s) return;
+      const rows = [
+        ['Count', s.n],
+        ['Unique', s.unique],
+        ['Uniqueness (%)', `${s.unique_pct}%`],
+        ['Mode', esc(s.mode)],
+      ].map(([label, value]) =>
+        `<div class="stat-row">
+          <span class="skey">${label}</span>
+          <span class="sval">${value}</span>
+        </div>`).join('');
+
+      const topRows = (s.top || []).map(t =>
+        `<div class="stat-row">
+          <span class="skey">${esc(t.value)}</span>
+          <span class="sval">${t.count} (${t.pct}%)</span>
+        </div>`).join('') ||
+        `<div class="stat-row">
+          <span class="skey">Top Values</span>
+          <span class="sval">N/A</span>
+        </div>`;
+
+      cards.push(`<div class="col-stat-card">
+        <h4>🏷 ${esc(col)}</h4>
+        ${rows}
+        <div style="margin-top:.7rem;font-weight:700;color:var(--navy);font-size:.8rem">Top Categories</div>
+        ${topRows}
+      </div>`);
+    });
+  }
+
+  if (!cards.length) {
+    document.getElementById('stats-grid').innerHTML =
+      '<div class="empty">No numeric or categorical columns found.</div>';
+    return;
+  }
+
+  document.getElementById('stats-grid').innerHTML = cards.join('');
+}
+
+// Correlation table
+function renderCorrelation(rows) {
+  if (!rows.length) {
+    document.getElementById('cor-body').innerHTML =
+      '<tr><td colspan="6" style="text-align:center;color:var(--gray2);padding:2rem">Need at least 2 non-categorical numeric columns.</td></tr>';
+    return;
+  }
+  document.getElementById('cor-body').innerHTML = rows.map(r => {
+    const sc = r.strength === 'Strong'   ? 'strength-strong'
+             : r.strength === 'Moderate' ? 'strength-moderate'
+             : 'strength-weak';
+    const dc = r.dir === 'Positive' ? 'dir-pos'
+             : r.dir === 'Negative' ? 'dir-neg' : '';
+    const bar = Math.abs(r.r);
+    return `<tr>
+      <td><strong>${r.a}</strong></td>
+      <td><strong>${r.b}</strong></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div style="flex:1;background:var(--gray3);border-radius:4px;height:6px;overflow:hidden">
+            <div style="width:${bar*100}%;height:100%;background:${r.r>=0?'var(--teal)':'var(--red)'};border-radius:4px"></div>
+          </div>
+          <span style="font-weight:700;min-width:42px">${r.r}</span>
+        </div>
+      </td>
+      <td>${r.n ?? '-'}</td>
+      <td><span class="${sc}">${r.strength}</span></td>
+      <td><span class="${dc}">${r.dir}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// Charts
+function renderCharts(plots) {
+  const titles = {
+    boxplot:  '📦 Box Plot — All Numeric Columns',
+    heatmap:  '🌡 Correlation Heatmap',
+    scatter:  '🔵 Scatter Matrix (Pairs Plot)',
+  };
+  const entries = Object.entries(plots);
+  if (!entries.length) {
+    document.getElementById('plot-grid').innerHTML =
+      '<div class="empty">No plots available.</div>';
+    return;
+  }
+
+  // Histograms first, then special plots
+  const hists = entries.filter(([k]) => k.startsWith('hist_'));
+  const cats = entries.filter(([k]) => k.startsWith('cat_') || k.startsWith('text_'));
+  const rest  = entries.filter(([k]) => !k.startsWith('hist_') && !k.startsWith('cat_') && !k.startsWith('text_'));
+
+  const makeCard = ([key, src]) => {
+    const histCol = key.startsWith('hist_') ? key.replace('hist_','') : null;
+    const catCol = key.startsWith('cat_')
+      ? key.replace('cat_','')
+      : key.startsWith('text_')
+        ? key.replace('text_','')
+        : null;
+    const title = histCol
+      ? `📊 Histogram — ${esc(histCol)}`
+      : catCol
+        ? `🏷 Category Frequency — ${esc(catCol)}`
+        : (titles[key] || key);
+    return `<div class="plot-card">
+      <div class="plot-card-header">${title}</div>
+      <img src="${src}" alt="${title}" loading="lazy"/>
+    </div>`;
+  };
+
+  document.getElementById('plot-grid').innerHTML =
+    [...hists, ...cats, ...rest].map(makeCard).join('');
+}
+</script>
+</body>
+</html>
